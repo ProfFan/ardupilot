@@ -10,7 +10,7 @@ sys.path.insert(0, 'Tools/ardupilotwaf/')
 import ardupilotwaf
 import boards
 
-from waflib import Build, ConfigSet, Context, Utils
+from waflib import Build, ConfigSet, Configure, Context, Utils
 
 # TODO: implement a command 'waf help' that shows the basic tasks a
 # developer might want to do: e.g. how to configure a board, compile a
@@ -19,66 +19,158 @@ from waflib import Build, ConfigSet, Context, Utils
 # pastable. Add the 'export waf="$PWD/waf"' trick to be copy-pastable
 # as well.
 
-# TODO: replace defines with the use of a generated config.h file
+# TODO: replace defines with the use of the generated ap_config.h file
 # this makes recompilation at least when defines change. which might
 # be sufficient.
 
-# TODO: set git version as part of build preparation.
+def _set_build_context_variant(variant):
+    for c in Context.classes:
+        if not issubclass(c, Build.BuildContext):
+            continue
+        c.variant = variant
 
 def init(ctx):
     env = ConfigSet.ConfigSet()
     try:
-        env.load('build/c4che/_cache.py')
+        p = os.path.join(Context.out_dir, Build.CACHE_DIR, Build.CACHE_SUFFIX)
+        env.load(p)
     except:
         return
 
+    Configure.autoconfig = 'clobber' if env.AUTOCONFIG else False
+
+    if 'VARIANT' not in env:
+        return
+
     # define the variant build commands according to the board
-    for c in Context.classes:
-        if not issubclass(c, Build.BuildContext):
-            continue
-        c.variant = env.BOARD
+    _set_build_context_variant(env.VARIANT)
 
 def options(opt):
-    opt.load('ardupilotwaf')
-    boards_names = boards.get_boards_names()
-
     opt.load('compiler_cxx compiler_c waf_unit_test python')
-    opt.add_option('--board',
-                   action='store',
-                   choices=boards_names,
-                   default='sitl',
-                   help='Target board to build, choices are %s' % boards_names)
+    opt.load('ardupilotwaf')
+    opt.load('build_summary')
 
-    g = opt.add_option_group('Check options')
-    g.add_option('--check-verbose',
-                 action='store_true',
-                 help='Output all test programs')
+    g = opt.ap_groups['configure']
+
+    boards_names = boards.get_boards_names()
+    g.add_option('--board',
+        action='store',
+        choices=boards_names,
+        default='sitl',
+        help='Target board to build, choices are %s.' % boards_names)
+
+    g.add_option('--debug',
+        action='store_true',
+        default=False,
+        help='Configure as debug variant.')
+
+    g.add_option('--no-autoconfig',
+        dest='autoconfig',
+        action='store_false',
+        default=True,
+        help='''
+Disable autoconfiguration feature. By default, the build system triggers a
+reconfiguration whenever it thinks it's necessary - this option disables that.
+''')
 
     g.add_option('--no-submodule-update',
-                 dest='submodule_update',
-                 action='store_false',
-                 default=True,
-                 help='Don\'t update git submodules. Useful for building ' +
-                      'with submodules at specific revisions.')
+        dest='submodule_update',
+        action='store_false',
+        default=True,
+        help='''
+Don't update git submodules. Useful for building with submodules at specific
+revisions.
+''')
+
+    g.add_option('--enable-benchmarks',
+        action='store_true',
+        default=False,
+        help='Enable benchmarks.')
+
+    g.add_option('--disable-lttng', action='store_true',
+        default=False,
+        help="Don't use lttng even if supported by board and dependencies available")
+
+    g.add_option('--disable-libiio', action='store_true',
+        default=False,
+        help="Don't use libiio even if supported by board and dependencies available")
+
+    g.add_option('--disable-tests', action='store_true',
+        default=False,
+        help="Disable compilation and test execution")
+
+    g.add_option('--static',
+        action='store_true',
+        default=False,
+        help='Force a static build')
+
+def _collect_autoconfig_files(cfg):
+    for m in sys.modules.values():
+        paths = []
+        if hasattr(m, '__file__'):
+            paths.append(m.__file__)
+        elif hasattr(m, '__path__'):
+            for p in m.__path__:
+                paths.append(p)
+
+        for p in paths:
+            if p in cfg.files or not os.path.isfile(p):
+                continue
+
+            with open(p, 'rb') as f:
+                cfg.hash = Utils.h_list((cfg.hash, f.read()))
+                cfg.files.append(p)
 
 def configure(cfg):
     cfg.env.BOARD = cfg.options.board
-    # use a different variant for each board
-    cfg.setenv(cfg.env.BOARD)
+    cfg.env.DEBUG = cfg.options.debug
+    cfg.env.AUTOCONFIG = cfg.options.autoconfig
+
+    cfg.env.VARIANT = cfg.env.BOARD
+    if cfg.env.DEBUG:
+        cfg.env.VARIANT += '-debug'
+
+    _set_build_context_variant(cfg.env.VARIANT)
+    cfg.setenv(cfg.env.VARIANT)
+
+    cfg.env.BOARD = cfg.options.board
+    cfg.env.DEBUG = cfg.options.debug
+
+    # Allow to differentiate our build from the make build
+    cfg.define('WAF_BUILD', 1)
+
+    cfg.msg('Autoconfiguration', 'enabled' if cfg.options.autoconfig else 'disabled')
+
+    if cfg.options.static:
+        cfg.msg('Using static linking', 'yes', color='YELLOW')
+        cfg.env.STATIC_LINKING = True
+
+    cfg.load('ap_library')
 
     cfg.msg('Setting board to', cfg.options.board)
-    cfg.env.BOARD = cfg.options.board
-    boards.get_board(cfg.env.BOARD).configure(cfg)
+    cfg.get_board().configure(cfg)
 
-    cfg.load('toolchain')
-    cfg.load('compiler_cxx compiler_c')
     cfg.load('clang_compilation_database')
     cfg.load('waf_unit_test')
     cfg.load('mavgen')
+
+    cfg.env.SUBMODULE_UPDATE = cfg.options.submodule_update
+
+    cfg.start_msg('Source is git repository')
+    if cfg.srcnode.find_node('.git'):
+        cfg.end_msg('yes')
+    else:
+        cfg.end_msg('no')
+        cfg.env.SUBMODULE_UPDATE = False
+
+    cfg.msg('Update submodules', 'yes' if cfg.env.SUBMODULE_UPDATE else 'no')
     cfg.load('git_submodule')
-    cfg.load('gbenchmark')
+
+    if cfg.options.enable_benchmarks:
+        cfg.load('gbenchmark')
     cfg.load('gtest')
     cfg.load('static_linking')
+    cfg.load('build_summary')
 
     cfg.start_msg('Benchmarks')
     if cfg.env.HAS_GBENCHMARK:
@@ -104,12 +196,21 @@ def configure(cfg):
         'SKETCHBOOK="' + cfg.srcnode.abspath() + '"',
     ])
 
-    if cfg.options.submodule_update:
-        cfg.env.SUBMODULE_UPDATE = [True]
+    # Always use system extensions
+    cfg.define('_GNU_SOURCE', 1)
+
+    cfg.write_config_header(os.path.join(cfg.variant, 'ap_config.h'))
+
+    _collect_autoconfig_files(cfg)
 
 def collect_dirs_to_recurse(bld, globs, **kw):
     dirs = []
     globs = Utils.to_list(globs)
+
+    if bld.bldnode.is_child_of(bld.srcnode):
+        kw['excl'] = Utils.to_list(kw.get('excl', []))
+        kw['excl'].append(bld.bldnode.path_from(bld.srcnode))
+
     for g in globs:
         for d in bld.srcnode.ant_glob(g + '/wscript', **kw):
             dirs.append(d.parent.relpath())
@@ -124,16 +225,15 @@ def _build_cmd_tweaks(bld):
         bld.cmd = 'check'
 
     if bld.cmd == 'check':
-        bld.options.clear_failed_tests = True
         if not bld.env.HAS_GTEST:
             bld.fatal('check: gtest library is required')
-        bld.add_post_fun(ardupilotwaf.test_summary)
+        bld.options.clear_failed_tests = True
 
 def _build_dynamic_sources(bld):
     bld(
         features='mavgen',
         source='modules/mavlink/message_definitions/v1.0/ardupilotmega.xml',
-        output_dir='libraries/GCS_MAVLink/include/mavlink/v1.0/',
+        output_dir='libraries/GCS_MAVLink/include/mavlink/v2.0/',
         name='mavlink',
         # this below is not ideal, mavgen tool should set this, but that's not
         # currently possible
@@ -143,6 +243,21 @@ def _build_dynamic_sources(bld):
         ],
     )
 
+    def write_version_header(tsk):
+        bld = tsk.generator.bld
+        return bld.write_version_header(tsk.outputs[0].abspath())
+
+    bld(
+        name='ap_version',
+        target='ap_version.h',
+        vars=['AP_VERSION_ITEMS'],
+        rule=write_version_header,
+    )
+
+    bld.env.prepend_value('INCLUDES', [
+        bld.bldnode.abspath(),
+    ])
+
 def _build_common_taskgens(bld):
     # NOTE: Static library with vehicle set to UNKNOWN, shared by all
     # the tools and examples. This is the first step until the
@@ -150,12 +265,15 @@ def _build_common_taskgens(bld):
     # split into smaller pieces with well defined boundaries.
     bld.ap_stlib(
         name='ap',
-        vehicle='UNKNOWN',
-        libraries=bld.ap_get_all_libraries(),
-        use='mavlink',
+        ap_vehicle='UNKNOWN',
+        ap_libraries=bld.ap_get_all_libraries(),
     )
 
-    bld.libgtest()
+    if bld.env.HAS_GTEST:
+        bld.libgtest(cxxflags=['-include', 'ap_config.h'])
+
+    if bld.env.HAS_GBENCHMARK:
+        bld.libbenchmark()
 
 def _build_recursion(bld):
     common_dirs_patterns = [
@@ -165,8 +283,9 @@ def _build_recursion(bld):
         '*',
         'Tools/*',
         'libraries/*/examples/*',
-        '**/tests',
-        '**/benchmarks',
+        'libraries/*/tests',
+        'libraries/*/utility/tests',
+        'libraries/*/benchmarks',
     ]
 
     common_dirs_excl = [
@@ -176,8 +295,9 @@ def _build_recursion(bld):
     ]
 
     hal_dirs_patterns = [
-        'libraries/%s/**/tests',
-        'libraries/%s/**/benchmarks',
+        'libraries/%s/tests',
+        'libraries/%s/*/tests',
+        'libraries/%s/*/benchmarks',
         'libraries/%s/examples/*',
     ]
 
@@ -201,10 +321,28 @@ def _build_recursion(bld):
     for d in dirs_to_recurse:
         bld.recurse(d)
 
+def _build_post_funs(bld):
+    if bld.cmd == 'check':
+        bld.add_post_fun(ardupilotwaf.test_summary)
+    else:
+        bld.build_summary_post_fun()
+
+    if bld.env.SUBMODULE_UPDATE:
+        bld.git_submodule_post_fun()
+
 def build(bld):
+    config_hash = Utils.h_file(bld.bldnode.make_node('ap_config.h').abspath())
+    bld.env.CCDEPS = config_hash
+    bld.env.CXXDEPS = config_hash
+
     bld.post_mode = Build.POST_LAZY
 
     bld.load('ardupilotwaf')
+
+    bld.env.AP_LIBRARIES_OBJECTS_KW.update(
+        use='mavlink',
+        cxxflags=['-include', 'ap_config.h'],
+    )
 
     _build_cmd_tweaks(bld)
 
@@ -217,9 +355,12 @@ def build(bld):
     _build_dynamic_sources(bld)
 
     bld.add_group('build')
+    bld.get_board().build(bld)
     _build_common_taskgens(bld)
 
     _build_recursion(bld)
+
+    _build_post_funs(bld)
 
 ardupilotwaf.build_command('check',
     program_group_list='all',
@@ -230,18 +371,11 @@ ardupilotwaf.build_command('check-all',
     doc='shortcut for `waf check --alltests`',
 )
 
-ardupilotwaf.build_command('copter',
-    targets='bin/arducopter',
-    doc='builds arducopter',
-)
-ardupilotwaf.build_command('plane',
-    targets='bin/arduplane',
-    doc='builds arduplane',
-)
-ardupilotwaf.build_command('rover',
-    targets='bin/ardurover',
-    doc='builds ardurover',
-)
+for name in ('antennatracker', 'copter', 'plane', 'rover', 'sub'):
+    ardupilotwaf.build_command(name,
+        program_group_list=name,
+        doc='builds %s programs' % name,
+    )
 
 for program_group in ('all', 'bin', 'tools', 'examples', 'tests', 'benchmarks'):
     ardupilotwaf.build_command(program_group,

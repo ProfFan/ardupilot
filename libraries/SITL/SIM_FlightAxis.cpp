@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,11 +27,9 @@
 #include <sys/types.h>
 
 #include <AP_HAL/AP_HAL.h>
+#include <DataFlash/DataFlash.h>
 
 extern const AP_HAL::HAL& hal;
-
-#define FLIGHTAXIS_SERVER_IP "192.168.2.48"
-#define FLIGHTAXIS_SERVER_PORT 18083
 
 namespace SITL {
 
@@ -44,8 +41,37 @@ FlightAxis::FlightAxis(const char *home_str, const char *frame_str) :
 {
     use_time_sync = false;
     rate_hz = 250 / target_speedup;
-    heli_demix = strstr(frame_str, "helidemix") != NULL;
-    rev4_servos = strstr(frame_str, "rev4") != NULL;
+    heli_demix = strstr(frame_str, "helidemix") != nullptr;
+    rev4_servos = strstr(frame_str, "rev4") != nullptr;
+    const char *colon = strchr(frame_str, ':');
+    if (colon) {
+        controller_ip = colon+1;
+    }
+    // FlightAxis sensor data is not good enough for EKF. Use fake EKF by default
+    AP_Param::set_default_by_name("AHRS_EKF_TYPE", 10);
+    AP_Param::set_default_by_name("INS_GYR_CAL", 0);
+
+    if (strstr(frame_str, "pitch270")) {
+        // rotate tailsitter airframes for fixed wing view
+        rotation = ROTATION_PITCH_270;
+    }
+    if (strstr(frame_str, "pitch90")) {
+        // rotate tailsitter airframes for fixed wing view
+        rotation = ROTATION_PITCH_90;
+    }
+
+    switch (rotation) {
+    case ROTATION_NONE:
+        break;
+    case ROTATION_PITCH_90:
+        att_rotation.from_euler(0, radians(90), 0);
+        break;
+    case ROTATION_PITCH_270:
+        att_rotation.from_euler(0, radians(270), 0);
+        break;
+    default:
+        AP_HAL::panic("Unsupported flightaxis rotation %u\n", (unsigned)rotation);
+    }
 }
 
 /*
@@ -61,12 +87,24 @@ void FlightAxis::parse_reply(const char *reply)
         }
         if (p == nullptr) {
             printf("Failed to find key %s\n", keytable[i].key);
+            controller_started = false;
             break;
         }
         p += strlen(keytable[i].key) + 1;
-        keytable[i].ref = atof(p);
-        // this assumes key order
-        reply = p;
+        double v;
+        if (strncmp(p, "true", 4) == 0) {
+            v = 1;
+        } else if (strncmp(p, "false", 5) == 0) {
+            v = 0;
+        } else {
+            v = atof(p);
+        }
+        keytable[i].ref = v;
+        // this assumes key order and allows us to decode arrays
+        p = strchr(p, '>');
+        if (p != nullptr) {
+            reply = p;
+        }
     }
 }
 
@@ -78,16 +116,16 @@ char *FlightAxis::soap_request(const char *action, const char *fmt, ...)
 {
     va_list ap;
     char *req1;
-    
+
     va_start(ap, fmt);
     vasprintf(&req1, fmt, ap);
     va_end(ap);
 
     //printf("%s\n", req1);
-    
+
     // open SOAP socket to FlightAxis
     SocketAPM sock(false);
-    if (!sock.connect(FLIGHTAXIS_SERVER_IP, FLIGHTAXIS_SERVER_PORT)) {
+    if (!sock.connect(controller_ip, controller_port)) {
         free(req1);
         return nullptr;
     }
@@ -120,7 +158,7 @@ Connection: Keep-Alive
     }
 
     // get the content length
-    uint32_t content_length = strtoul(p+16, NULL, 10);
+    uint32_t content_length = strtoul(p+16, nullptr, 10);
     char *body = strstr(p, "\r\n\r\n");
     if (body == nullptr) {
         printf("No body\n");
@@ -129,9 +167,9 @@ Connection: Keep-Alive
     body += 4;
 
     // get the rest of the body
-    uint32_t expected_length = content_length + (body - reply);
-    if (expected_length >= sizeof(reply)) {
-        printf("Reply too large %u\n", expected_length);
+    int32_t expected_length = content_length + (body - reply);
+    if (expected_length >= (int32_t)sizeof(reply)) {
+        printf("Reply too large %i\n", expected_length);
         return nullptr;
     }
     while (ret < expected_length) {
@@ -139,17 +177,21 @@ Connection: Keep-Alive
         if (ret2 <= 0) {
             return nullptr;
         }
+        // nul terminate
+        reply[ret+ret2] = 0;
         ret += ret2;
     }
     return strdup(reply);
 }
-    
+
 
 
 void FlightAxis::exchange_data(const struct sitl_input &input)
 {
-    if (!controller_started) {
-        printf("Starting controller\n");
+    if (!controller_started ||
+        is_zero(state.m_flightAxisControllerIsActive) ||
+        !is_zero(state.m_resetButtonHasBeenPressed)) {
+        printf("Starting controller at %s\n", controller_ip);
         // call a restore first. This allows us to connect after the aircraft is changed in RealFlight
         char *reply = soap_request("RestoreOriginalControllerDevice", R"(<?xml version='1.0' encoding='UTF-8'?>
 <soap:Envelope xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/' xmlns:xsd='http://www.w3.org/2001/XMLSchema' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>
@@ -181,7 +223,7 @@ void FlightAxis::exchange_data(const struct sitl_input &input)
         memcpy(&scaled_servos[0], &scaled_servos[4], sizeof(saved));
         memcpy(&scaled_servos[4], saved, sizeof(saved));
     }
-    
+
     if (heli_demix) {
         // FlightAxis expects "roll/pitch/collective/yaw" input
         float swash1 = scaled_servos[0];
@@ -194,8 +236,8 @@ void FlightAxis::exchange_data(const struct sitl_input &input)
         scaled_servos[0] = constrain_float(roll_rate + 0.5, 0, 1);
         scaled_servos[1] = constrain_float(pitch_rate + 0.5, 0, 1);
     }
-    
-    
+
+
     char *reply = soap_request("ExchangeData", R"(<?xml version='1.0' encoding='UTF-8'?><soap:Envelope xmlns:soap='http://schemas.xmlsoap.org/soap/envelope/' xmlns:xsd='http://www.w3.org/2001/XMLSchema' xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>
 <soap:Body>
 <ExchangeData>
@@ -229,70 +271,100 @@ void FlightAxis::exchange_data(const struct sitl_input &input)
         free(reply);
     }
 }
-    
-    
+
+
 /*
   update the FlightAxis simulation by one time step
  */
 void FlightAxis::update(const struct sitl_input &input)
 {
-    Vector3f last_velocity_ef = velocity_ef;
-    
     exchange_data(input);
 
-    float dt_seconds = state.m_currentPhysicsTime_SEC - last_time_s;
-    if (dt_seconds <= 0) {
+    double dt_seconds = state.m_currentPhysicsTime_SEC - last_time_s;
+    if (dt_seconds < 0) {
+        // cope with restarting RealFlight while connected
+        initial_time_s = time_now_us * 1.0e-6f;
+        last_time_s = state.m_currentPhysicsTime_SEC;
+        position_offset.zero();
         return;
     }
-
+    if (dt_seconds < 0.0001f) {
+        // we probably got a repeated frame
+        time_now_us += 1;
+        return;
+    }
     if (initial_time_s <= 0) {
         dt_seconds = 0.001f;
         initial_time_s = state.m_currentPhysicsTime_SEC - dt_seconds;
     }
-    
+
+    /*
+      the queternion convention in realflight seems to have Z negative
+     */
     Quaternion quat(state.m_orientationQuaternion_W,
-                    state.m_orientationQuaternion_Z,
-                    -state.m_orientationQuaternion_Y,
+                    state.m_orientationQuaternion_Y,
+                    state.m_orientationQuaternion_X,
                     -state.m_orientationQuaternion_Z);
     quat.rotation_matrix(dcm);
-    dcm.from_euler(radians(state.m_roll_DEG),
-                   radians(state.m_inclination_DEG),
-                   -radians(state.m_azimuth_DEG));
-    Quaternion quat2;
-    quat2.from_rotation_matrix(dcm);
+
     gyro = Vector3f(radians(constrain_float(state.m_rollRate_DEGpSEC, -2000, 2000)),
                     radians(constrain_float(state.m_pitchRate_DEGpSEC, -2000, 2000)),
                     -radians(constrain_float(state.m_yawRate_DEGpSEC, -2000, 2000))) * target_speedup;
+
     velocity_ef = Vector3f(state.m_velocityWorldU_MPS,
                              state.m_velocityWorldV_MPS,
                              state.m_velocityWorldW_MPS);
     position = Vector3f(state.m_aircraftPositionY_MTR,
                         state.m_aircraftPositionX_MTR,
-                        -state.m_altitudeAGL_MTR);
+                        -state.m_altitudeASL_MTR - home.alt*0.01);
+
+    accel_body(state.m_accelerationBodyAX_MPS2,
+               state.m_accelerationBodyAY_MPS2,
+               state.m_accelerationBodyAZ_MPS2);
+
+    if (rotation != ROTATION_NONE) {
+        dcm.transpose();
+        dcm = att_rotation * dcm;
+        dcm.transpose();
+        gyro.rotate(rotation);
+        accel_body.rotate(rotation);
+    }
+
+    // accel on the ground is nasty in realflight, and prevents helicopter disarm
+    if (state.m_isTouchingGround) {
+        Vector3f accel_ef = (velocity_ef - last_velocity_ef) / dt_seconds;
+        accel_ef.z -= GRAVITY_MSS;
+        accel_body = dcm.transposed() * accel_ef;
+    }
+
+    // limit to 16G to match pixhawk
+    float a_limit = GRAVITY_MSS*16;
+    accel_body.x = constrain_float(accel_body.x, -a_limit, a_limit);
+    accel_body.y = constrain_float(accel_body.y, -a_limit, a_limit);
+    accel_body.z = constrain_float(accel_body.z, -a_limit, a_limit);
 
     // offset based on first position to account for offset in RF world
-    if (position_offset.is_zero()) {
+    if (position_offset.is_zero() || state.m_resetButtonHasBeenPressed) {
         position_offset = position;
     }
     position -= position_offset;
 
-    // the accel values given in the state are very strange. Calculate
-    // it from delta-velocity instead, although this does introduce
-    // noise
-    Vector3f accel_ef = (velocity_ef - last_velocity_ef) / dt_seconds;
-    accel_ef.z -= GRAVITY_MSS;
-    accel_body = dcm.transposed() * accel_ef;
-    accel_body.x = constrain_float(accel_body.x, -16, 16);
-    accel_body.y = constrain_float(accel_body.y, -16, 16);
-    accel_body.z = constrain_float(accel_body.z, -16, 16);
-
     airspeed = state.m_airspeed_MPS;
+    airspeed_pitot = state.m_airspeed_MPS;
 
     battery_voltage = state.m_batteryVoltage_VOLTS;
     battery_current = state.m_batteryCurrentDraw_AMPS;
-    rpm1 = state.m_propRPM;
-    rpm2 = state.m_heliMainRotorRPM;
-    
+    rpm1 = state.m_heliMainRotorRPM;
+    rpm2 = state.m_propRPM;
+
+    /*
+      the interlink interface supports 8 input channels
+     */
+    rcin_chan_count = 8;
+    for (uint8_t i=0; i<rcin_chan_count; i++) {
+        rcin[i] = state.rcin[i];
+    }
+
     update_position();
     time_now_us = (state.m_currentPhysicsTime_SEC - initial_time_s)*1.0e6;
 
@@ -300,9 +372,6 @@ void FlightAxis::update(const struct sitl_input &input)
         if (last_frame_count_s != 0) {
             printf("%.2f FPS\n",
                    1000 / (state.m_currentPhysicsTime_SEC - last_frame_count_s));
-            printf("(%.3f %.3f %.3f %.3f) (%.3f %.3f %.3f %.3f)\n",
-                   quat.q1, quat.q2, quat.q3, quat.q4, 
-                   quat2.q1, quat2.q2, quat2.q3, quat2.q4);
         } else {
             printf("Initial position %f %f %f\n", position.x, position.y, position.z);
         }
@@ -310,6 +379,11 @@ void FlightAxis::update(const struct sitl_input &input)
     }
 
     last_time_s = state.m_currentPhysicsTime_SEC;
+
+    last_velocity_ef = velocity_ef;
+
+    // update magnetic field
+    update_mag_field_bf();
 }
 
 } // namespace SITL

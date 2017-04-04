@@ -1,6 +1,4 @@
-
-#ifndef __AP_HAL_PX4_SCHEDULER_H__
-#define __AP_HAL_PX4_SCHEDULER_H__
+#pragma once
 
 #include <AP_HAL/AP_HAL.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
@@ -15,6 +13,8 @@
 #define APM_MAIN_PRIORITY_BOOST 241
 #define APM_MAIN_PRIORITY       180
 #define APM_TIMER_PRIORITY      181
+#define APM_SPI_PRIORITY        242
+#define APM_I2C_PRIORITY        178
 #define APM_UART_PRIORITY        60
 #define APM_STORAGE_PRIORITY     59
 #define APM_IO_PRIORITY          58
@@ -102,6 +102,3 @@ private:
     perf_counter_t  _perf_delay;
 };
 #endif
-#endif // __AP_HAL_PX4_SCHEDULER_H__
-
-

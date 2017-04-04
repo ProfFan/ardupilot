@@ -1,4 +1,3 @@
-// -*- Mode: C++; c-basic-offset: 8; indent-tabs-mode: nil -*-
 /*
    Adapted from the avr-libc vfprintf:
 
@@ -39,7 +38,7 @@
 
 #include "print_vprintf.h"
 
-#include <math.h>
+#include <cmath>
 #include <stdarg.h>
 #include <string.h>
 

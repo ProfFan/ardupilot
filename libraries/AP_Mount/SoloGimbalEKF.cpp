@@ -1,5 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 #include <AP_HAL/AP_HAL.h>
 
 #if HAL_CPU_CLASS >= HAL_CPU_CLASS_150
@@ -109,7 +107,7 @@ void SoloGimbalEKF::RunEKF(float delta_time, const Vector3f &delta_angles, const
         FiltInit = true;
         hal.console->printf("\nSoloGimbalEKF Alignment Started\n");
 
-        // Don't run the filter in this timestep becasue we have already used the delta velocity data to set an initial orientation
+        // Don't run the filter in this timestep because we have already used the delta velocity data to set an initial orientation
         return;
     }
 
@@ -887,19 +885,19 @@ float SoloGimbalEKF::calcMagHeadingInnov()
     float innovation = atan2f(magMeasNED.y,magMeasNED.x) - declination;
 
     // wrap the innovation so it sits on the range from +-pi
-    if (innovation > M_PI_F) {
-        innovation = innovation - 2*M_PI_F;
-    } else if (innovation < -M_PI_F) {
-        innovation = innovation + 2*M_PI_F;
+    if (innovation > M_PI) {
+        innovation = innovation - 2*M_PI;
+    } else if (innovation < -M_PI) {
+        innovation = innovation + 2*M_PI;
     }
 
     // Unwrap so that a large yaw gyro bias offset that causes the heading to wrap does not lead to continual uncontrolled heading drift
-    if (innovation - lastInnovation > M_PI_F) {
+    if (innovation - lastInnovation > M_PI) {
         // Angle has wrapped in the positive direction to subtract an additional 2*Pi
-        innovationIncrement -= 2*M_PI_F;
-    } else if (innovation -innovationIncrement < -M_PI_F) {
+        innovationIncrement -= 2*M_PI;
+    } else if (innovation -innovationIncrement < -M_PI) {
         // Angle has wrapped in the negative direction so add an additional 2*Pi
-        innovationIncrement += 2*M_PI_F;
+        innovationIncrement += 2*M_PI;
     }
     lastInnovation = innovation;
 

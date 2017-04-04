@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,7 +38,7 @@ const AP_Param::GroupInfo AP_RollController::var_info[] = {
 	// @Range: 0.1 4.0
 	// @Increment: 0.1
 	// @User: User
-	AP_GROUPINFO("P",        1, AP_RollController, gains.P,        0.4f),
+	AP_GROUPINFO("P",        1, AP_RollController, gains.P,        0.6f),
 
 	// @Param: D
 	// @DisplayName: Damping Gain
@@ -55,7 +54,7 @@ const AP_Param::GroupInfo AP_RollController::var_info[] = {
 	// @Range: 0 1.0
 	// @Increment: 0.05
 	// @User: User
-	AP_GROUPINFO("I",        3, AP_RollController, gains.I,        0.04f),
+	AP_GROUPINFO("I",        3, AP_RollController, gains.I,        0.1f),
 
 	// @Param: RMAX
 	// @DisplayName: Maximum Roll Rate

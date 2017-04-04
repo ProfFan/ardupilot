@@ -1,7 +1,4 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
-#ifndef __AP_HAL_PX4_ANALOGIN_H__
-#define __AP_HAL_PX4_ANALOGIN_H__
+#pragma once
 
 #include "AP_HAL_PX4.h"
 #include <pthread.h>
@@ -55,15 +52,15 @@ private:
 class PX4::PX4AnalogIn : public AP_HAL::AnalogIn {
 public:
     PX4AnalogIn();
-    void init();
-    AP_HAL::AnalogSource* channel(int16_t pin);
+    void init() override;
+    AP_HAL::AnalogSource* channel(int16_t pin) override;
     void _timer_tick(void);
-    float board_voltage(void) { return _board_voltage; }
-    float servorail_voltage(void) { return _servorail_voltage; }
-    uint16_t power_status_flags(void) { return _power_flags; }
+    float board_voltage(void) override { return _board_voltage; }
+    float servorail_voltage(void) override { return _servorail_voltage; }
+    uint16_t power_status_flags(void) override { return _power_flags; }
 
 private:
-    int _adc_fd;
+    int _adc_fd = -1;
     int _battery_handle;
     int _servorail_handle;
     int _system_power_handle;
@@ -82,4 +79,3 @@ private:
 
     void next_stop_pin(void);
 };
-#endif // __AP_HAL_PX4_ANALOGIN_H__

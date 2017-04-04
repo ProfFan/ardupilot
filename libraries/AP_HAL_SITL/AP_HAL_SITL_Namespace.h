@@ -1,6 +1,4 @@
-
-#ifndef __AP_HAL_SITL_NAMESPACE_H__
-#define __AP_HAL_SITL_NAMESPACE_H__
+#pragma once
 
 namespace HALSITL {
 class UARTDriver;
@@ -14,6 +12,6 @@ class ADCSource;
 class RCInput;
 class Util;
 class Semaphore;
-}
-
-#endif // __AP_HAL_SITL_NAMESPACE_H__
+class GPIO;
+class DigitalSource;
+}  // namespace HALSITL

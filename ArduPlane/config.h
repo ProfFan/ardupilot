@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 //
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -19,6 +18,7 @@
 //
 // - Try to keep this file organised in the same order as APM_Config.h.example
 //
+#pragma once
 
 #include "defines.h"
 
@@ -70,7 +70,6 @@
 #endif
 #endif
 
-#define RANGEFINDER_ENABLED ENABLED
 
 //////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
@@ -182,14 +181,6 @@
 
 
 //////////////////////////////////////////////////////////////////////////////
-// THROTTLE_OUT
-//
-#ifndef THROTTE_OUT
- # define THROTTLE_OUT                   ENABLED
-#endif
-
-
-//////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 // STARTUP BEHAVIOUR
 //////////////////////////////////////////////////////////////////////////////
@@ -217,6 +208,10 @@
 #endif
 #ifndef ELEVON_CH2_REVERSE
  # define ELEVON_CH2_REVERSE     DISABLED
+#endif
+
+#ifndef DSPOILR_RUD_RATE_DEFAULT
+ #define DSPOILR_RUD_RATE_DEFAULT 100
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -293,7 +288,7 @@
  # define THROTTLE_CRUISE                45
 #endif
 #ifndef THROTTLE_MAX
- # define THROTTLE_MAX                   75
+ # define THROTTLE_MAX                   100
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -400,11 +395,6 @@
  # define RESET_SWITCH_CHAN_PWM 1750
 #endif
 
-// OBC Failsafe enable
-#ifndef OBC_FAILSAFE
-#define OBC_FAILSAFE ENABLED
-#endif
-
 #define HIL_SUPPORT ENABLED
 
 //////////////////////////////////////////////////////////////////////////////
@@ -413,12 +403,9 @@
 #define PARACHUTE ENABLED
 #endif
 
-/*
-  build a firmware version string.
-  GIT_VERSION comes from Makefile builds
-*/
-#ifndef GIT_VERSION
-#define FIRMWARE_STRING THISFIRMWARE
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4 && !defined(CONFIG_ARCH_BOARD_PX4FMU_V4)
+# define HAVE_PX4_MIXER 1
 #else
-#define FIRMWARE_STRING THISFIRMWARE " (" GIT_VERSION ")"
+# define HAVE_PX4_MIXER 0
 #endif
+

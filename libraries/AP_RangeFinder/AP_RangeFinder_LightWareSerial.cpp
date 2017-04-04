@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -62,7 +61,7 @@ bool AP_RangeFinder_LightWareSerial::get_reading(uint16_t &reading_cm)
         char c = uart->read();
         if (c == '\r') {
             linebuf[linebuf_len] = 0;
-            sum += atof(linebuf);
+            sum += (float)atof(linebuf);
             count++;
             linebuf_len = 0;
         } else if (isdigit(c) || c == '.') {

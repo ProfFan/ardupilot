@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +19,8 @@
 #pragma once
 
 #include "SIM_Aircraft.h"
+#include "SIM_ICEngine.h"
+#include <Filter/LowPassFilter.h>
 
 namespace SITL {
 
@@ -43,7 +44,6 @@ protected:
     const float air_density = 1.225; // kg/m^3 at sea level, ISA conditions
     float angle_of_attack;
     float beta;
-    Vector3f velocity_bf;
 
     struct {
         // from last_letter skywalker_2013/aerodynamics.yaml
@@ -93,6 +93,13 @@ protected:
 
     float thrust_scale;
     bool reverse_thrust;
+    bool elevons;
+    bool vtail;
+    bool reverse_elevator_rudder;
+    bool ice_engine;
+    bool tailsitter;
+
+    ICEngine icengine{2, 14, 12, 13, 100};
 
     float liftCoeff(float alpha) const;
     float dragCoeff(float alpha) const;

@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /// @file	AC_PI_2D.cpp
 /// @brief	Generic PID algorithm
 
@@ -25,7 +23,7 @@ const AP_Param::GroupInfo AC_PI_2D::var_info[] = {
     // @Param: FILT_HZ
     // @DisplayName: PID Input filter frequency in Hz
     // @Description: Input filter frequency in Hz
-    // @Unit: Hz
+    // @Units: Hz
     AP_GROUPINFO("FILT_HZ", 3, AC_PI_2D, _filt_hz, AC_PI_2D_FILT_HZ_DEFAULT),
 
     AP_GROUPEND
@@ -173,6 +171,6 @@ void AC_PI_2D::calc_filt_alpha()
     }
   
     // calculate alpha
-    float rc = 1/(M_2PI_F*_filt_hz);
+    float rc = 1/(M_2PI*_filt_hz);
     _filt_alpha = _dt / (_dt + rc);
 }

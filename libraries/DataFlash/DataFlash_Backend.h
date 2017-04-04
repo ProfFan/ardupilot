@@ -1,5 +1,4 @@
-#ifndef DATAFLASH_BACKEND_H
-#define DATAFLASH_BACKEND_H
+#pragma once
 
 #include "DataFlash.h"
 
@@ -53,7 +52,7 @@ public:
     virtual void ListAvailableLogs(AP_HAL::BetterStream *port) = 0;
 
     void EnableWrites(bool enable) { _writes_enabled = enable; }
-    bool logging_started(void) const { return log_write_started; }
+    virtual bool logging_started(void) const { return log_write_started; }
 
     virtual void Init() {
         _writes_enabled = true;
@@ -61,10 +60,18 @@ public:
 
     void set_mission(const AP_Mission *mission);
 
-    virtual uint16_t bufferspace_available() = 0;
+    virtual uint32_t bufferspace_available() = 0;
 
     virtual uint16_t start_new_log(void) = 0;
     bool log_write_started;
+
+    /* stop logging - close output files etc etc.
+     *
+     * note that this doesn't stop logging from starting up again
+     * immediately - e.g. DataFlash_MAVLink might get another start
+     * packet from a client.
+     */
+    virtual void stop_logging(void) = 0;
 
     void Log_Fill_Format(const struct LogStructure *structure, struct log_Format &pkt);
 
@@ -89,11 +96,32 @@ public:
     bool Log_Write_Message(const char *message);
     bool Log_Write_Mission_Cmd(const AP_Mission &mission,
                                const AP_Mission::Mission_Command &cmd);
-    bool Log_Write_Mode(uint8_t mode);;
+    bool Log_Write_Mode(uint8_t mode, uint8_t reason = 0);
     bool Log_Write_Parameter(const char *name, float value);
     bool Log_Write_Parameter(const AP_Param *ap,
                              const AP_Param::ParamToken &token,
                              enum ap_var_type type);
+
+    uint32_t num_dropped(void) const {
+        return _dropped;
+    }
+
+    /*
+     * Log_Write support
+     */
+    // write a FMT message out (if it hasn't been done already).
+    // Returns true if the FMT message has ever been written.
+    bool Log_Write_Emit_FMT(uint8_t msg_type);
+
+    // write a log message out to the log of msg_type type, with
+    // values contained in arg_list:
+    bool Log_Write(uint8_t msg_type, va_list arg_list, bool is_critical=false);
+
+    // these methods are used when reporting system status over mavlink
+    virtual bool logging_enabled() const = 0;
+    virtual bool logging_failed() const = 0;
+
+    virtual void vehicle_was_disarmed() { };
 
 protected:
     uint32_t dropped;
@@ -129,10 +157,11 @@ protected:
     uint32_t _internal_errors;
     uint32_t _dropped;
 
+    // must be called when a new log is being started:
+    virtual void start_new_log_reset_variables();
+
 private:
 
     uint32_t _last_periodic_1Hz;
     uint32_t _last_periodic_10Hz;
 };
-
-#endif

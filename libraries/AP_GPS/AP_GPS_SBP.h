@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,23 +19,22 @@
 //
 //  Swift Binary Protocol format: http://docs.swift-nav.com/
 //
-
-#ifndef __AP_GPS_SBP_H__
-#define __AP_GPS_SBP_H__
+#pragma once
 
 #include "AP_GPS.h"
+#include "GPS_Backend.h"
 
 class AP_GPS_SBP : public AP_GPS_Backend
 {
 public:
     AP_GPS_SBP(AP_GPS &_gps, AP_GPS::GPS_State &_state, AP_HAL::UARTDriver *_port);
 
-    AP_GPS::GPS_Status highest_supported_status(void) { return AP_GPS::GPS_OK_FIX_3D_RTK; }
+    AP_GPS::GPS_Status highest_supported_status(void) { return AP_GPS::GPS_OK_FIX_3D_RTK_FIXED; }
 
     // Methods
     bool read();
 
-    void inject_data(uint8_t *data, uint8_t len);
+    void inject_data(const uint8_t *data, uint16_t len) override;
 
     static bool _detect(struct SBP_detect_state &state, uint8_t data);
 
@@ -169,5 +167,3 @@ private:
    
 
 };
-
-#endif // __AP_GPS_SBP_H__

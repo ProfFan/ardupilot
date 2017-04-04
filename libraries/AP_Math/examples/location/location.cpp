@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 //
 // Unit tests for the AP_Math polygon code
 //
@@ -37,7 +36,7 @@ static const struct {
 
 static struct Location location_from_point(Vector2f pt)
 {
-    struct Location loc = {0};
+    struct Location loc = {};
     loc.lat = pt.x * 1.0e7f;
     loc.lng = pt.y * 1.0e7f;
     return loc;
@@ -45,7 +44,7 @@ static struct Location location_from_point(Vector2f pt)
 
 static void test_passed_waypoint(void)
 {
-    hal.console->println("waypoint tests starting");
+    hal.console->printf("waypoint tests starting\n");
     for (uint8_t i=0; i<ARRAY_SIZE(test_points); i++) {
         struct Location loc = location_from_point(test_points[i].location);
         struct Location wp1 = location_from_point(test_points[i].wp1);
@@ -55,7 +54,7 @@ static void test_passed_waypoint(void)
             return;
         }
     }
-    hal.console->println("waypoint tests OK");
+    hal.console->printf("waypoint tests OK\n");
 }
 
 static void test_one_offset(const struct Location &loc,
@@ -97,7 +96,7 @@ static const struct {
 
 static void test_offset(void)
 {
-    struct Location loc;
+    struct Location loc {};
 
     loc.lat = -35*1.0e7f;
     loc.lng = 149*1.0e7f;
@@ -117,7 +116,7 @@ static void test_offset(void)
  */
 static void test_accuracy(void)
 {
-    struct Location loc;
+    struct Location loc {};
 
     loc.lat = 0.0e7f;
     loc.lng = -120.0e7f;
@@ -194,9 +193,9 @@ static const struct {
 static const struct {
     float v, wv;
 } wrap_PI_tests[] = {
-    { 0.2f*PI,            0.2f*PI },
-    { 0.2f*PI + 100*PI,  0.2f*PI },
-    { -0.2f*PI - 100*PI,  -0.2f*PI },
+    { 0.2f*M_PI,            0.2f*M_PI },
+    { 0.2f*M_PI + 100*M_PI,  0.2f*M_PI },
+    { -0.2f*M_PI - 100*M_PI,  -0.2f*M_PI },
 };
 
 static void test_wrap_cd(void)

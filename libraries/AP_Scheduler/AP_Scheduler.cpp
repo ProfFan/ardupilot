@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,13 +23,12 @@
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_Vehicle/AP_Vehicle.h>
+#include <stdio.h>
 
-#if APM_BUILD_TYPE(APM_BUILD_ArduCopter)
+#if APM_BUILD_TYPE(APM_BUILD_ArduCopter) || APM_BUILD_TYPE(APM_BUILD_ArduSub)
 #define SCHEDULER_DEFAULT_LOOP_RATE 400
-#define SCHEDULER_EXPOSE_LOOP_RATE_PARAMETER 0
 #else
 #define SCHEDULER_DEFAULT_LOOP_RATE  50
-#define SCHEDULER_EXPOSE_LOOP_RATE_PARAMETER 1
 #endif
 
 extern const AP_HAL::HAL& hal;
@@ -45,7 +43,6 @@ const AP_Param::GroupInfo AP_Scheduler::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("DEBUG",    0, AP_Scheduler, _debug, 0),
 
-#if SCHEDULER_EXPOSE_LOOP_RATE_PARAMETER
     // @Param: LOOP_RATE
     // @DisplayName: Scheduling main loop rate
     // @Description: This controls the rate of the main control loop in Hz. This should only be changed by developers. This only takes effect on restart
@@ -53,7 +50,6 @@ const AP_Param::GroupInfo AP_Scheduler::var_info[] = {
     // @RebootRequired: True
     // @User: Advanced
     AP_GROUPINFO("LOOP_RATE",  1, AP_Scheduler, _loop_rate_hz, SCHEDULER_DEFAULT_LOOP_RATE),
-#endif
 
     AP_GROUPEND
 };
@@ -61,9 +57,7 @@ const AP_Param::GroupInfo AP_Scheduler::var_info[] = {
 // constructor
 AP_Scheduler::AP_Scheduler(void)
 {
-#if !SCHEDULER_EXPOSE_LOOP_RATE_PARAMETER
     _loop_rate_hz.set(SCHEDULER_DEFAULT_LOOP_RATE);
-#endif
     AP_Param::setup_object_defaults(this, var_info);
 
     // only allow 50 to 400 Hz
@@ -94,11 +88,20 @@ void AP_Scheduler::tick(void)
   run one tick
   this will run as many scheduler tasks as we can in the specified time
  */
-void AP_Scheduler::run(uint16_t time_available)
+void AP_Scheduler::run(uint32_t time_available)
 {
     uint32_t run_started_usec = AP_HAL::micros();
     uint32_t now = run_started_usec;
 
+    if (_debug > 3 && _perf_counters == nullptr) {
+        _perf_counters = new AP_HAL::Util::perf_counter_t[_num_tasks];
+        if (_perf_counters != nullptr) {
+            for (uint8_t i=0; i<_num_tasks; i++) {
+                _perf_counters[i] = hal.util->perf_alloc(AP_HAL::Util::PC_ELAPSED, _tasks[i].name);
+            }
+        }
+    }
+    
     for (uint8_t i=0; i<_num_tasks; i++) {
         uint16_t dt = _tick_counter - _last_run[i];
         uint16_t interval_ticks = _loop_rate_hz / _tasks[i].rate_hz;
@@ -112,12 +115,12 @@ void AP_Scheduler::run(uint16_t time_available)
             if (dt >= interval_ticks*2) {
                 // we've slipped a whole run of this task!
                 if (_debug > 1) {
-                    hal.console->printf("Scheduler slip task[%u-%s] (%u/%u/%u)\n",
-                                          (unsigned)i,
-                                          _tasks[i].name,
-                                          (unsigned)dt,
-                                          (unsigned)interval_ticks,
-                                          (unsigned)_task_time_allowed);
+                    ::printf("Scheduler slip task[%u-%s] (%u/%u/%u)\n",
+                             (unsigned)i,
+                             _tasks[i].name,
+                             (unsigned)dt,
+                             (unsigned)interval_ticks,
+                             (unsigned)_task_time_allowed);
                 }
             }
 
@@ -125,7 +128,13 @@ void AP_Scheduler::run(uint16_t time_available)
                 // run it
                 _task_time_started = now;
                 current_task = i;
+                if (_debug > 3 && _perf_counters && _perf_counters[i]) {
+                    hal.util->perf_begin(_perf_counters[i]);
+                }
                 _tasks[i].function();
+                if (_debug > 3 && _perf_counters && _perf_counters[i]) {
+                    hal.util->perf_end(_perf_counters[i]);
+                }
                 current_task = -1;
 
                 // record the tick counter when we ran. This drives
@@ -138,12 +147,12 @@ void AP_Scheduler::run(uint16_t time_available)
 
                 if (time_taken > _task_time_allowed) {
                     // the event overran!
-                    if (_debug > 2) {
-                        hal.console->printf("Scheduler overrun task[%u-%s] (%u/%u)\n",
-                                              (unsigned)i,
-                                              _tasks[i].name,
-                                              (unsigned)time_taken,
-                                              (unsigned)_task_time_allowed);
+                    if (_debug > 4) {
+                        ::printf("Scheduler overrun task[%u-%s] (%u/%u)\n",
+                                 (unsigned)i,
+                                 _tasks[i].name,
+                                 (unsigned)time_taken,
+                                 (unsigned)_task_time_allowed);
                     }
                 }
                 if (time_taken >= time_available) {

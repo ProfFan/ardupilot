@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /************************************************************
 * AP_mount -- library to control a 2 or 3 axis mount.		*
 *															*
@@ -19,8 +17,7 @@
 * Comments: All angles in degrees * 100, distances in meters*
 *			unless otherwise stated.						*
 ************************************************************/
-#ifndef __AP_MOUNT_H__
-#define __AP_MOUNT_H__
+#pragma once
 
 #include <AP_Math/AP_Math.h>
 #include <AP_Common/AP_Common.h>
@@ -186,5 +183,3 @@ protected:
 
     DataFlash_Class *_dataflash;
 };
-
-#endif // __AP_MOUNT_H__

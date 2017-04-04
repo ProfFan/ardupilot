@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
   smaller EKF for simpler estimation applications
 
@@ -17,9 +16,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _SOLO_GIMBAL_EKF_
-#define _SOLO_GIMBAL_EKF_
+#pragma once
 
 #include <AP_Math/AP_Math.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
@@ -29,7 +26,7 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_NavEKF/AP_Nav_Common.h>
 #include <AP_AHRS/AP_AHRS.h>
-#include <AP_NavEKF/AP_NavEKF.h>
+//#include <AP_NavEKF2/AP_NavEKF2.h>
 
 #include <AP_Math/vectorN.h>
 
@@ -172,5 +169,3 @@ private:
     // Force symmmetry and non-negative diagonals on state covarinace matrix
     void fixCovariance();
 };
-
-#endif // _SOLO_GIMBAL_EKF_

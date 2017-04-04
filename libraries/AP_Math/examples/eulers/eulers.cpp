@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 //
 // Unit tests for the AP_Math euler code
 //
@@ -13,11 +12,11 @@ const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 static float rad_diff(float rad1, float rad2)
 {
     float diff = rad1 - rad2;
-    if (diff > PI) {
-        diff -= 2*PI;
+    if (diff > M_PI) {
+        diff -= 2*M_PI;
     }
-    if (diff < -PI) {
-        diff += 2*PI;
+    if (diff < -M_PI) {
+        diff += 2*M_PI;
     }
     return fabsf(diff);
 }
@@ -35,18 +34,18 @@ static void check_result(const char *msg,
 
     if (rad_diff(roll2,roll) > ToRad(179)) {
         // reverse all 3
-        roll2 += fmod(roll2+PI, 2*PI);
-        pitch2 += fmod(pitch2+PI, 2*PI);
-        yaw2 += fmod(yaw2+PI, 2*PI);
+        roll2 += fmod(roll2+M_PI, 2*M_PI);
+        pitch2 += fmod(pitch2+M_PI, 2*M_PI);
+        yaw2 += fmod(yaw2+M_PI, 2*M_PI);
     }
 
     if (rad_diff(roll2,roll) > 0.01f ||
         rad_diff(pitch2, pitch) > 0.01f ||
         rad_diff(yaw2, yaw) > 0.01f) {
-        if (pitch >= PI/2 ||
-            pitch <= -PI/2 ||
-            ToDeg(rad_diff(pitch, PI/2)) < 1 ||
-            ToDeg(rad_diff(pitch, -PI/2)) < 1) {
+        if (pitch >= M_PI/2 ||
+            pitch <= -M_PI/2 ||
+            ToDeg(rad_diff(pitch, M_PI/2)) < 1 ||
+            ToDeg(rad_diff(pitch, -M_PI/2)) < 1) {
             // we expect breakdown at these poles
 #if SHOW_POLES_BREAKDOWN
             hal.console->printf(
@@ -77,22 +76,22 @@ static void test_euler(float roll, float pitch, float yaw)
     check_result("test_euler", roll, pitch, yaw, roll2, pitch2, yaw2);
 }
 
-static const float angles[] = { 0, PI/8, PI/4, PI/2, PI,
-                                -PI/8, -PI/4, -PI/2, -PI};
+static const float angles[] = { 0, M_PI/8, M_PI/4, M_PI/2, M_PI,
+                                -M_PI/8, -M_PI/4, -M_PI/2, -M_PI};
 
 void test_matrix_eulers(void)
 {
     uint8_t i, j, k;
     uint8_t N = ARRAY_SIZE(angles);
 
-    hal.console->println("rotation matrix unit tests\n");
+    hal.console->printf("rotation matrix unit tests\n\n");
 
     for (i=0; i<N; i++)
         for (j=0; j<N; j++)
             for (k=0; k<N; k++)
                 test_euler(angles[i], angles[j], angles[k]);
 
-    hal.console->println("tests done\n");
+    hal.console->printf("tests done\n\n");
 }
 
 static void test_quaternion(float roll, float pitch, float yaw)
@@ -124,17 +123,17 @@ void test_quaternion_eulers(void)
     uint8_t i, j, k;
     uint8_t N = ARRAY_SIZE(angles);
 
-    hal.console->println("quaternion unit tests\n");
+    hal.console->printf("quaternion unit tests\n\n");
 
-    test_quaternion(PI/4, 0, 0);
-    test_quaternion(0, PI/4, 0);
-    test_quaternion(0, 0, PI/4);
-    test_quaternion(-PI/4, 0, 0);
-    test_quaternion(0, -PI/4, 0);
-    test_quaternion(0, 0, -PI/4);
-    test_quaternion(-PI/4, 1, 1);
-    test_quaternion(1, -PI/4, 1);
-    test_quaternion(1, 1, -PI/4);
+    test_quaternion(M_PI/4, 0, 0);
+    test_quaternion(0, M_PI/4, 0);
+    test_quaternion(0, 0, M_PI/4);
+    test_quaternion(-M_PI/4, 0, 0);
+    test_quaternion(0, -M_PI/4, 0);
+    test_quaternion(0, 0, -M_PI/4);
+    test_quaternion(-M_PI/4, 1, 1);
+    test_quaternion(1, -M_PI/4, 1);
+    test_quaternion(1, 1, -M_PI/4);
 
     test_quaternion(ToRad(89), 0, 0.1f);
     test_quaternion(0, ToRad(89), 0.1f);
@@ -149,7 +148,7 @@ void test_quaternion_eulers(void)
             for (k=0; k<N; k++)
                 test_quaternion(angles[i], angles[j], angles[k]);
 
-    hal.console->println("tests done\n");
+    hal.console->printf("tests done\n\n");
 }
 
 
@@ -184,7 +183,7 @@ void test_conversions(void)
     uint8_t i, j, k;
     uint8_t N = ARRAY_SIZE(angles);
 
-    hal.console->println("matrix/quaternion tests\n");
+    hal.console->printf("matrix/quaternion tests\n\n");
 
     test_conversion(1, 1.1f, 1.2f);
     test_conversion(1, -1.1f, 1.2f);
@@ -197,7 +196,7 @@ void test_conversions(void)
             for (k=0; k<N; k++)
                 test_conversion(angles[i], angles[j], angles[k]);
 
-    hal.console->println("tests done\n");
+    hal.console->printf("tests done\n\n");
 }
 
 void test_frame_transforms(void)
@@ -206,7 +205,7 @@ void test_frame_transforms(void)
     Quaternion q;
     Matrix3f m;
 
-    hal.console->println("frame transform tests\n");
+    hal.console->printf("frame transform tests\n\n");
 
     q.from_euler(ToRad(45), ToRad(45), ToRad(45));
     q.normalize();
@@ -234,8 +233,12 @@ void test_frame_transforms(void)
 // generate a random float between -1 and 1
 static float rand_num(void)
 {
-    float ret = ((unsigned)random()) % 2000000;
-    return (ret - 1.0e6f) / 1.0e6f;
+#if CONFIG_HAL_BOARD == HAL_BOARD_PX4
+    /* random() isn't implemented for PX4 */
+    return 2.0f * rand() / MAX_RAND - 1.0f;
+#else
+    return 2.0f * random() / RAND_MAX - 1.0f;
+#endif
 }
 
 void test_matrix_rotate(void)
@@ -282,9 +285,9 @@ void test_matrix_rotate(void)
  */
 void setup(void)
 {
-    hal.console->println("euler unit tests\n");
+    hal.console->printf("euler unit tests\n\n");
 
-    test_conversion(0, PI, 0);
+    test_conversion(0, M_PI, 0);
 
     test_frame_transforms();
     test_conversions();

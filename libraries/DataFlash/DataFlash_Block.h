@@ -1,11 +1,7 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /* 
    DataFlash logging - block oriented variant
  */
-
-#ifndef DataFlash_block_h
-#define DataFlash_block_h
+#pragma once
 
 #include "DataFlash_Backend.h"
 
@@ -17,8 +13,6 @@ public:
     DataFlash_Block(DataFlash_Class &front, DFMessageWriter_DFLogStart *writer) :
         DataFlash_Backend(front, writer) { }
 
-    // initialisation
-    virtual void Init(const struct LogStructure *structure, uint8_t num_types) = 0;
     virtual bool CardInserted(void) = 0;
 
     // erase handling
@@ -46,7 +40,7 @@ public:
     void ShowDeviceInfo(AP_HAL::BetterStream *port);
     void ListAvailableLogs(AP_HAL::BetterStream *port);
 
-    uint16_t bufferspace_available();
+    uint32_t bufferspace_available();
 
 private:
     struct PageHeader {
@@ -125,6 +119,3 @@ protected:
 
 
 #include "DataFlash_SITL.h"
-
-#endif // DataFlash_block_h
-

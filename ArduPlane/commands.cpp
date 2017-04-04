@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
  *  logic for dealing with the current command in the mission and home location
  */
@@ -71,7 +70,7 @@ void Plane::set_next_WP(const struct Location &loc)
 
 void Plane::set_guided_WP(void)
 {
-    if (g.loiter_radius < 0) {
+    if (aparm.loiter_radius < 0 || guided_WP_loc.flags.loiter_ccw) {
         loiter.direction = -1;
     } else {
         loiter.direction = 1;
@@ -89,10 +88,15 @@ void Plane::set_guided_WP(void)
     // -----------------------------------------------
     set_target_altitude_current();
 
-    update_flight_stage();
     setup_glide_slope();
     setup_turn_angle();
 
+    // reset loiter start time.
+    loiter.start_time_ms = 0;
+
+    // start in non-VTOL mode
+    auto_state.vtol_loiter = false;
+    
     loiter_angle_reset();
 }
 
@@ -106,8 +110,6 @@ void Plane::init_home()
     home_is_set = HOME_SET_NOT_LOCKED;
     Log_Write_Home_And_Origin();
     GCS_MAVLINK::send_home_all(gps.location());
-
-    gcs_send_text_fmt(MAV_SEVERITY_INFO, "GPS alt: %lu", (unsigned long)home.alt);
 
     // Save Home to EEPROM
     mission.write_home_to_storage();
@@ -124,10 +126,20 @@ void Plane::init_home()
 */
 void Plane::update_home()
 {
+    if (fabsf(barometer.get_altitude()) > 2) {
+        // don't auto-update if we have changed barometer altitude
+        // significantly. This allows us to cope with slow baro drift
+        // but not re-do home and the baro if we have changed height
+        // significantly
+        return;
+    }
     if (home_is_set == HOME_SET_NOT_LOCKED) {
-        ahrs.set_home(gps.location());
-        Log_Write_Home_And_Origin();
-        GCS_MAVLINK::send_home_all(gps.location());
+        Location loc;
+        if(ahrs.get_position(loc)) {
+            ahrs.set_home(loc);
+            Log_Write_Home_And_Origin();
+            GCS_MAVLINK::send_home_all(loc);
+        }
     }
     barometer.update_calibration();
 }

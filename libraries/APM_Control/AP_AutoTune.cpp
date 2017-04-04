@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -90,7 +88,7 @@ AP_AutoTune::AP_AutoTune(ATGains &_gains, ATType _type,
   auto-tuning table. This table gives the starting values for key
   tuning parameters based on a user chosen AUTOTUNE_LEVEL parameter
   from 1 to 10. Level 1 is a very soft tune. Level 10 is a very
-  agressive tune.
+  aggressive tune.
  */
 static const struct {
     float tau;
@@ -337,7 +335,7 @@ void AP_AutoTune::write_log(float servo, float demanded, float achieved)
     struct log_ATRP pkt = {
         LOG_PACKET_HEADER_INIT(LOG_ATRP_MSG),
         time_us    : AP_HAL::micros64(),
-        type       : type,
+        type       : static_cast<uint8_t>(type),
     	state      : (uint8_t)state,
         servo      : (int16_t)(servo*100),
         demanded   : demanded,

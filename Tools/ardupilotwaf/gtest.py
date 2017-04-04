@@ -8,8 +8,22 @@ gtest is a Waf tool for test builds in Ardupilot
 from waflib import Utils
 from waflib.Configure import conf
 
+import boards
+
 def configure(cfg):
     cfg.env.HAS_GTEST = False
+    if cfg.options.disable_tests:
+        return
+
+    board = cfg.get_board()
+    if isinstance(board, boards.px4):
+        # toolchain is currently broken for gtest
+        cfg.msg(
+            'Gtest',
+            'PX4 boards currently don\'t support compiling gtest',
+            color='YELLOW',
+        )
+        return
 
     if cfg.env.STATIC_LINKING:
         # gtest uses a function (getaddrinfo) that is supposed to be linked

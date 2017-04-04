@@ -1,4 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,7 +19,7 @@
  */
 #pragma once
 
-#include "Compass.h"
+#include "AP_Compass.h"
 
 class Compass;  // forward declaration
 class AP_Compass_Backend
@@ -32,9 +31,6 @@ public:
     // override with a custom destructor if need be.
     virtual ~AP_Compass_Backend(void) {}
 
-    // initialize the magnetometers
-    virtual bool init(void) = 0;
-
     // read sensor data
     virtual void read(void) = 0;
 
@@ -42,6 +38,27 @@ public:
     // backends
     virtual void accumulate(void) {};
 
+    /*
+      device driver IDs. These are used to fill in the devtype field
+      of the device ID, which shows up as COMPASS*ID* parameters to
+      users. The values are chosen for compatibility with existing PX4
+      drivers.
+      If a change is made to a driver that would make existing
+      calibration values invalid then this number must be changed.
+     */
+    enum DevTypes {
+        DEVTYPE_HMC5883_OLD = 0x01,
+        DEVTYPE_HMC5883 = 0x07,
+        DEVTYPE_LSM303D = 0x02,
+        DEVTYPE_AK8963  = 0x04,
+        DEVTYPE_BMM150  = 0x05,
+        DEVTYPE_LSM9DS1 = 0x06,
+        DEVTYPE_LIS3MDL = 0x08,
+        DEVTYPE_AK09916 = 0x09,
+        DEVTYPE_IST8310 = 0x0A,
+    };
+    
+    
 protected:
 
     /*
@@ -52,9 +69,7 @@ protected:
      *      calibration libraries
      * 3. correct_field - this corrects the measurement in-place for hard iron,
      *      soft iron, motor interference, and non-orthagonality errors
-     * 4. publish_unfiltered_field - this (optionally) provides a corrected
-     *      point sample for fusion into the EKF
-     * 5. publish_filtered_field - legacy filtered magnetic field
+     * 4. publish_filtered_field - legacy filtered magnetic field
      *
      * All those functions expect the mag field to be in milligauss.
      */
@@ -62,8 +77,8 @@ protected:
     void rotate_field(Vector3f &mag, uint8_t instance);
     void publish_raw_field(const Vector3f &mag, uint32_t time_us, uint8_t instance);
     void correct_field(Vector3f &mag, uint8_t i);
-    void publish_unfiltered_field(const Vector3f &mag, uint32_t time_us, uint8_t instance);
     void publish_filtered_field(const Vector3f &mag, uint8_t instance);
+    void set_last_update_usec(uint32_t last_update, uint8_t instance);
 
     // register a new compass instance with the frontend
     uint8_t register_compass(void) const;
@@ -74,9 +89,18 @@ protected:
     // set external state for an instance
     void set_external(uint8_t instance, bool external);
 
+    // tell if instance is an external compass
+    bool is_external(uint8_t instance);
+
+    // set rotation of an instance
+    void set_rotation(uint8_t instance, enum Rotation rotation);
+    
     // access to frontend
     Compass &_compass;
 
+    // semaphore for access to shared frontend data
+    AP_HAL::Semaphore *_sem;    
+    
 private:
     void apply_corrections(Vector3f &mag, uint8_t i);
 };

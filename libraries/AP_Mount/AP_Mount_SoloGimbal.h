@@ -1,11 +1,7 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /*
   MAVLink enabled mount backend class
  */
-
-#ifndef __AP_MOUNT_SOLOGIMBAL_H__
-#define __AP_MOUNT_SOLOGIMBAL_H__
+#pragma once
 
 
 #include <AP_HAL/AP_HAL.h>
@@ -66,5 +62,3 @@ private:
 };
 
 #endif // AP_AHRS_NAVEKF_AVAILABLE
-
-#endif // __AP_MOUNT_SOLOGIMBAL_H__

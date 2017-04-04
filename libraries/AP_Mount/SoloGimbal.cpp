@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 #include <AP_HAL/AP_HAL.h>
 #include <AP_AHRS/AP_AHRS.h>
 #if AP_AHRS_NAVEKF_AVAILABLE
@@ -29,7 +27,7 @@ bool SoloGimbal::aligned()
 
 gimbal_mode_t SoloGimbal::get_mode()
 {
-    if ((_gimbalParams.initialized() && _gimbalParams.get_K_rate()==0.0f) || (_ahrs.get_rotation_body_to_ned().c.z < 0 && !(_lockedToBody || _calibrator.running()))) {
+    if ((_gimbalParams.initialized() && is_zero(_gimbalParams.get_K_rate())) || (_ahrs.get_rotation_body_to_ned().c.z < 0 && !(_lockedToBody || _calibrator.running()))) {
         return GIMBAL_MODE_IDLE;
     } else if (!_ekf.getStatus()) {
         return GIMBAL_MODE_POS_HOLD;
@@ -145,7 +143,7 @@ void SoloGimbal::send_controls(mavlink_channel_t chan)
     // set GMB_MAX_TORQUE
     float max_torque;
     _gimbalParams.get_param(GMB_PARAM_GMB_MAX_TORQUE, max_torque, 0);
-    if (max_torque != _max_torque && max_torque != 0) {
+    if (!is_equal(max_torque,_max_torque) && !is_zero(max_torque)) {
         _max_torque = max_torque;
     }
 
@@ -177,9 +175,9 @@ void SoloGimbal::extract_feedback(const mavlink_gimbal_report_t& report_msg)
     _measurement.joint_angles -= _gimbalParams.get_joint_bias();
     _measurement.delta_velocity -= _gimbalParams.get_accel_bias() * _measurement.delta_time;
     Vector3f accel_gain = _gimbalParams.get_accel_gain();
-    _measurement.delta_velocity.x *= accel_gain.x == 0.0f ? 1.0f : accel_gain.x;
-    _measurement.delta_velocity.y *= accel_gain.y == 0.0f ? 1.0f : accel_gain.y;
-    _measurement.delta_velocity.z *= accel_gain.z == 0.0f ? 1.0f : accel_gain.z;
+    _measurement.delta_velocity.x *= (is_zero(accel_gain.x) ? 1.0f : accel_gain.x);
+    _measurement.delta_velocity.y *= (is_zero(accel_gain.y) ? 1.0f : accel_gain.y);
+    _measurement.delta_velocity.z *= (is_zero(accel_gain.z) ? 1.0f : accel_gain.z);
 
     // update _ang_vel_mag_filt, used for accel sample readiness
     Vector3f ang_vel = _measurement.delta_angles / _measurement.delta_time;
@@ -375,7 +373,7 @@ void SoloGimbal::update_target(Vector3f newTarget)
 
 void SoloGimbal::write_logs(DataFlash_Class* dataflash)
 {
-    if (dataflash == NULL) return;
+    if (dataflash == nullptr) return;
 
     uint32_t tstamp = AP_HAL::millis();
     Vector3f eulerEst;
@@ -431,7 +429,7 @@ AccelCalibrator* SoloGimbal::_acal_get_calibrator(uint8_t instance)
     if(instance==0 && (present() || _calibrator.get_status() == ACCEL_CAL_SUCCESS)) {
         return &_calibrator;
     } else {
-        return NULL;
+        return nullptr;
     }
 }
 
